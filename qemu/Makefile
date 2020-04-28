@@ -20,20 +20,11 @@ endif
 endif
 
 CONFIG_SOFTMMU := $(if $(filter %-softmmu,$(TARGET_DIRS)),y)
-CONFIG_ALL=y
 -include config-all-devices.mak
 
 include $(SRC_PATH)/rules.mak
 config-host.mak: $(SRC_PATH)/configure
 	@echo $@ is out-of-date, running configure
-	@# TODO: The next lines include code which supports a smooth
-	@# transition from old configurations without config.status.
-	@# This code can be removed after QEMU 1.7.
-	@if test -x config.status; then \
-	    ./config.status; \
-        else \
-	    sed -n "/.*Configured with/s/[^:]*: //p" $@ | sh; \
-	fi
 else
 config-host.mak:
 ifneq ($(filter-out %clean,$(MAKECMDGOALS)),$(if $(MAKECMDGOALS),,fail))
@@ -55,8 +46,6 @@ configure: ;
 
 $(call set-vpath, $(SRC_PATH))
 
-LIBS+=-lz $(LIBS_TOOLS)
-
 SUBDIR_MAKEFLAGS=$(if $(V),,--no-print-directory) BUILD_DIR=$(BUILD_DIR)
 SUBDIR_DEVICES_MAK=$(patsubst %, %/config-devices.mak, $(TARGET_DIRS))
 SUBDIR_DEVICES_MAK_DEP=$(patsubst %, %-config-devices.mak.d, $(TARGET_DIRS))
@@ -75,38 +64,13 @@ endif
 -include $(SUBDIR_DEVICES_MAK_DEP)
 
 %/config-devices.mak: default-configs/%.mak
-	$(call quiet-command,$(SHELL) $(SRC_PATH)/scripts/make_device_config.sh $@ $<, "  GEN   $@")
-	@if test -f $@; then \
-	  if cmp -s $@.old $@; then \
-	    mv $@.tmp $@; \
-	    cp -p $@ $@.old; \
-	  else \
-	    if test -f $@.old; then \
-	      echo "WARNING: $@ (user modified) out of date.";\
-	    else \
-	      echo "WARNING: $@ out of date.";\
-	    fi; \
-	    echo "Run \"make defconfig\" to regenerate."; \
-	    rm $@.tmp; \
-	  fi; \
-	 else \
-	  mv $@.tmp $@; \
-	  cp -p $@ $@.old; \
-	 fi
-
-defconfig:
-	rm -f config-all-devices.mak $(SUBDIR_DEVICES_MAK)
+	$(call quiet-command, cp $< $@, "  GEN   $@")
 
 ifneq ($(wildcard config-host.mak),)
 include $(SRC_PATH)/Makefile.objs
 endif
 
-dummy := $(call unnest-vars,, \
-                util-obj-y \
-                block-obj-y \
-                block-obj-m \
-                common-obj-y \
-                common-obj-m)
+dummy := $(call unnest-vars,,util-obj-y common-obj-y)
 
 all: $(HELPERS-y) recurse-all modules
 
@@ -116,7 +80,6 @@ config-host.h-timestamp: config-host.mak
 SUBDIR_RULES=$(patsubst %,subdir-%, $(TARGET_DIRS))
 SOFTMMU_SUBDIR_RULES=$(filter %-softmmu,$(SUBDIR_RULES))
 
-$(SOFTMMU_SUBDIR_RULES): $(block-obj-y)
 $(SOFTMMU_SUBDIR_RULES): config-all-devices.mak
 
 subdir-%:
